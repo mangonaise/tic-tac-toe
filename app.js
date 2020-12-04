@@ -1,10 +1,10 @@
 const GameBoard = (() => {
     // X always goes first. True when it's X's turn.
     let _isPlayerOneTurn = true;
+    let _waitForComputerTurn = false;
     let _isGameOver = false;
-    let _boardState = [];
-    function getBoardState() { return _boardState; }
-    const _turnText = document.getElementById("turn-text");
+    let boardState = [];
+    const _turnTextElement = document.getElementById("turn-text");
     const _cells = Array.from(document.querySelectorAll(".grid-cell"));
     const _winConditions = [
       [0,1,2],
@@ -16,14 +16,19 @@ const GameBoard = (() => {
       [0,4,8],
       [2,4,6]  
     ];
+    let _turnText1 = "X to play.";
+    let _turnText2 = "O to play.";
+    let _winText1 = "X won!";
+    let _winText2 = "O won!";
     let _root = document.documentElement.style;
 
     function initialize() {
         _isGameOver = false;
-        _boardState = [];
+        boardState = [];
         _isPlayerOneTurn = true;
+        _waitForComputerTurn = false;
         _cells.forEach(cell => {
-            _boardState.push('none');
+            boardState.push('none');
             cell.addEventListener('click', () => _selectCell(cell))
             cell.classList.add("selectable");
             cell.classList.remove("highlighted-cell");
@@ -37,6 +42,7 @@ const GameBoard = (() => {
             symbolContainer.classList.add("hidden");
             cell.appendChild(symbolContainer);
          });
+         AI.cancel();
          _displayPlayerTurn();
     }
 
@@ -46,19 +52,26 @@ const GameBoard = (() => {
         initialize();
     }
 
+    function setTurnText(player1TurnText, player2TurnText, player1WinText, player2WinText) {
+        _turnText1 = player1TurnText;
+        _turnText2 = player2TurnText;
+        _winText1 = player1WinText;
+        _winText2 = player2WinText;
+    }
+
     function _displayPlayerTurn() {
-        _turnText.textContent = _isPlayerOneTurn ? "X to play." : "O to play.";
+        _turnTextElement.textContent = _isPlayerOneTurn ? _turnText1 : _turnText2;
         let textColor = _isPlayerOneTurn ? "rgb(72, 196, 159)" : "rgb(197, 82, 130)";
         _root.setProperty("--turn-text-color", textColor);
     }
 
     function _selectCell(cell) {
         let cellIndex = _cells.indexOf(cell);
-        if (_isGameOver || _boardState[cellIndex] != "none") {
+        if (_waitForComputerTurn || _isGameOver || boardState[cellIndex] != "none") {
             return; 
         }
 
-        _boardState[cellIndex] = _isPlayerOneTurn ? "x" : "o";
+        boardState[cellIndex] = _isPlayerOneTurn ? "x" : "o";
 
         let symbolContainer = cell.firstChild;
         symbolContainer.innerHTML = _isPlayerOneTurn ? pathX : pathO;
@@ -71,13 +84,18 @@ const GameBoard = (() => {
         _checkWin();
     }
 
+    function computerPlay(cellIndex) {
+        _waitForComputerTurn = false;
+        _selectCell(_cells[cellIndex]);
+    }
+
     function _checkWin() {
         for (let i = 0; i < _winConditions.length; i++) {
             let condition = _winConditions[i];
-            let check1 = _boardState[condition[0]];
+            let check1 = boardState[condition[0]];
             if (check1 === "none") continue;
-            let check2 = _boardState[condition[1]];
-            let check3 = _boardState[condition[2]];
+            let check2 = boardState[condition[1]];
+            let check3 = boardState[condition[2]];
             
             if (check1 === check2 && check2 === check3) {
                 _isGameOver = true;
@@ -87,18 +105,22 @@ const GameBoard = (() => {
         }
 
         if (_isGameOver) {
-            _turnText.textContent = `${_isPlayerOneTurn ? "X" : "O"} won!`
+            _turnTextElement.textContent = _isPlayerOneTurn ? _winText1 : _winText2;
             return;
         }
 
-        if (_boardState.indexOf("none") === -1) {
+        if (boardState.indexOf("none") === -1) {
             _isGameOver = true;
             _root.setProperty("--turn-text-color", "black");
-            _turnText.textContent = "Cat's game!";
+            _turnTextElement.textContent = "Cat's game!";
             return;
         }
         
         _isPlayerOneTurn = !_isPlayerOneTurn;
+        if (DifficultySelector.currentDifficulty !== 0 && !_isPlayerOneTurn) {
+            _waitForComputerTurn = true;
+            AI.play();
+        }
         _displayPlayerTurn();
     }
 
@@ -109,11 +131,13 @@ const GameBoard = (() => {
     return {
         initialize,
         restartGame,
-        getBoardState
+        setTurnText,
+        computerPlay,
+        get boardState() { return boardState; }
     };
 })();
 
-DifficultySelector = (() => {
+const DifficultySelector = (() => {
 
     let currentDifficulty = 0;
 
@@ -132,9 +156,29 @@ DifficultySelector = (() => {
     }
 
     function selectDifficulty(difficultyIndex) {
+
+        if ([0,1,2,3].indexOf(difficultyIndex) === -1) {
+            throw `Invalid difficulty ${difficultyIndex}`;
+        }
+
         // 0 = play friend, 1 = easy, 2 = medium, 3 = impossible
         difficultyButtons.forEach(button => button.classList.remove("selected-button"));
         difficultyButtons[difficultyIndex].classList.add("selected-button");
+
+        switch (difficultyIndex) {
+            case 0:
+                GameBoard.setTurnText("X to play.", "O to play.", "X won!", "O won!");
+                break;
+            case 1:
+                GameBoard.setTurnText("Your turn.", "🐵 is thinking...", "You won!", "🐵 beat you!")
+                break;
+            case 2:
+                GameBoard.setTurnText("Your turn.", "🤖 is thinking...", "You won!", "🤖 beat you!")
+                break;
+            case 3: 
+                GameBoard.setTurnText("Your turn.", "🌞 is thinking...", "You won!", "🌞 beat you!")
+                break;
+        }
 
         if (currentDifficulty != difficultyIndex) {
             GameBoard.initialize();
@@ -144,8 +188,41 @@ DifficultySelector = (() => {
     }
 
     return {
-        currentDifficulty,
+        get currentDifficulty() { return currentDifficulty;},
         selectDifficulty
+    };
+})();
+
+const AI = (()=> {
+    let _turnDelay;
+
+    function play() {
+        _turnDelay = setTimeout(() => {
+            GameBoard.computerPlay(_chooseMove());
+        }, 800 + Math.floor(Math.random() * 1000));
+    }
+
+    function cancel() {
+        clearTimeout(_turnDelay);
+    }
+
+    function _chooseMove() {
+        // Monkey chooses randomly.
+        if (DifficultySelector.currentDifficulty === 1) {
+            let randomIndex = -1;
+            do {
+                randomIndex = Math.floor(Math.random() * 9);
+            }
+            while (GameBoard.boardState[randomIndex] !== "none");
+
+            return randomIndex;
+        }
+        
+    }
+
+    return {
+        play,
+        cancel
     };
 })();
 
