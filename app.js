@@ -223,18 +223,13 @@ const AI = (()=> {
             case 2:
                 return Math.random() > 0.8 ? _randomMove() : _perfectMove();
             case 3:
-                return _perfectMove(GameBoard.boardState, false);
+                return _perfectMove();
         }
     }
 
     function _randomMove() {
-        let randomIndex = -1;
-        do {
-            randomIndex = Math.floor(Math.random() * 9);
-        }
-        while (GameBoard.boardState[randomIndex] !== "none");
-
-        return randomIndex;
+        let availableCells = _availableCellIndexes(GameBoard.boardState);
+        return availableCells[Math.floor(Math.random() * availableCells.length)];
     }
 
     function _perfectMove() {
@@ -299,6 +294,8 @@ const AI = (()=> {
         cancelTurn
     };
 })();
+
+// Program
 
 GameBoard.initialize();
 DifficultySelector.selectDifficulty(0);
